@@ -5,8 +5,6 @@ import * as React from "react"
 import { Card, CardContent } from "~/components/ui/card"
 import { TypewriterEffect } from "~/components/ui/typewriter-effect";
 import { motion } from "framer-motion";
-import { cn } from "~/lib/utils";
-import { Boxes } from "~/components/ui/background-boxes";
 
 import {
   Carousel,
@@ -114,7 +112,7 @@ function CarouselAPIFunc({ setSelectedTheme }: { setSelectedTheme: (theme: strin
       setCurrentThemeIndex(newIndex);
       setSelectedTheme(themes[newIndex] ?? "General"); 
     });
-  }, [api, setSelectedTheme]);
+  }, [api, setSelectedTheme, themes]);
 
   return (
     <div className="mx-auto max-w-xs p-6">

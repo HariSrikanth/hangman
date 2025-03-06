@@ -1,14 +1,13 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription } from "~/components/ui/alert-dialog";
-import { Boxes } from 'lucide-react';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from "~/components/ui/alert-dialog";
 
-export default function Gameplay() {
+function GameplayContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const theme = searchParams.get("theme") ?? "General";
@@ -48,11 +47,13 @@ export default function Gameplay() {
         ]
     };
     
-    const selectedWordList = wordLists[theme] ?? wordLists.General;
+    // Initialize word once when component mounts
     const [selectedWord] = useState(() => {
-        const wordList = (wordLists[theme] ?? wordLists.General) as string[];
-        if (!wordList.length) return "";
-        return wordList[Math.floor(Math.random() * wordList.length)].toLowerCase();
+        const lists = wordLists as Record<string, readonly string[]>;
+        const currentTheme = (theme in lists) ? theme : "General";
+        const wordList = lists[currentTheme] as string[];
+        const randomIndex = Math.floor(Math.random() * wordList.length);
+        return wordList[randomIndex]?.toLowerCase() ?? "default";
     });
 
     const [correctLetters, setCorrectLetters] = useState<string[]>([]);
@@ -60,16 +61,34 @@ export default function Gameplay() {
     const [gameStatus, setGameStatus] = useState<'playing' | 'won' | 'lost'>('playing');
     const [inputValue, setInputValue] = useState("");
 
-    useEffect(() => {
-        checkGameStatus();
-    }, [correctLetters, wrongLetters]);
-
-    const checkGameStatus = () => {
+    const checkGameStatus = useCallback(() => {
         if (wrongLetters.length >= 6) {
             setGameStatus('lost');
         } else if (selectedWord.split('').every(letter => correctLetters.includes(letter))) {
             setGameStatus('won');
         }
+    }, [wrongLetters.length, correctLetters, selectedWord]);
+
+    useEffect(() => {
+        checkGameStatus();
+    }, [correctLetters, wrongLetters, checkGameStatus]);
+
+    const handleGuess = () => {
+        const guess = inputValue.trim().toLowerCase();
+        if (guess.length !== 1 || !/^[a-z]$/.test(guess)) {
+            alert("Please enter a single valid letter.");
+            return;
+        }
+        if (correctLetters.includes(guess) || wrongLetters.includes(guess)) {
+            alert("You've already guessed that letter!");
+            return;
+        }
+        if (selectedWord.includes(guess)) {
+            setCorrectLetters([...correctLetters, guess]);
+        } else {
+            setWrongLetters([...wrongLetters, guess]);
+        }
+        setInputValue("");
     };
 
     const restartGame = () => {
@@ -79,49 +98,37 @@ export default function Gameplay() {
     return(
         <main className="flex min-h-screen flex-col items-center justify-center bg-black text-green-300">
             <div className="p-6">
-                    <h1 className="text-4xl font-bold">Gameplay Screen</h1>
-                    <p className="text-xl mt-4 text-center">Theme: {theme}</p>
+                <h1 className="text-4xl font-bold">Gameplay Screen</h1>
+                <p className="text-xl mt-4 text-center">Theme: {theme}</p>
+            </div>
+            
+            <Word 
+                selectedWord={selectedWord} 
+                correctLetters={correctLetters} 
+                gameStatus={gameStatus} 
+            />
+            <Figure wrongLetters={wrongLetters}/>
+            {wrongLetters.length > 0 && (
+                <div className="mt-4 text-xl">
+                    Wrong letters: {wrongLetters.join(", ")}
                 </div>
-                
-                <Word selectedWord={selectedWord} correctLetters={correctLetters} gameStatus={gameStatus} />
-                <Figure wrongLetters={wrongLetters}/>
-                {wrongLetters.length > 0 && (
-                    <div className="mt-4 text-xl">
-                        Wrong letters: {wrongLetters.join(", ")}
-                    </div>
-                )}
-                {gameStatus === 'playing' && (
-                    <div className="flex w-full max-w-sm items-center justify-center space-x-2 mt-4">
-                        <Input 
-                            type="text" 
-                            value={inputValue} 
-                            onChange={(e) => setInputValue(e.target.value)} 
-                            placeholder="Enter a Letter Here" 
-                            className='w-48' 
-                        />
-                        <Button 
-                            type="button" 
-                            onClick={() => {
-                                const guess = inputValue.trim().toLowerCase();
-                                if (guess.length !== 1 || !/^[a-z]$/.test(guess)) {
-                                    alert("Please enter a single valid letter.");
-                                    return;
-                                }
-                                if (selectedWord.includes(guess)) {
-                                    if (!correctLetters.includes(guess)) {
-                                        setCorrectLetters([...correctLetters, guess]);
-                                    }
-                                } else {
-                                    if (!wrongLetters.includes(guess)) {
-                                        setWrongLetters([...wrongLetters, guess]);
-                                    }
-                                }
-                                setInputValue("");
-                            }}
-                            className="bg-green-300 border-black text-black transition transform delay-50 duration-300 ease-in ease-out hover:-translate-y-0.5 hover:scale-110 hover:text-white" 
-                        >Guess</Button>
-                    </div>
-                )}
+            )}
+            {gameStatus === 'playing' && (
+                <div className="flex w-full max-w-sm items-center justify-center space-x-2 mt-4">
+                    <Input 
+                        type="text" 
+                        value={inputValue} 
+                        onChange={(e) => setInputValue(e.target.value)} 
+                        placeholder="Enter a Letter Here" 
+                        className='w-48' 
+                    />
+                    <Button 
+                        type="button" 
+                        onClick={handleGuess}
+                        className="bg-green-300 border-black text-black transition transform delay-50 duration-300 ease-in ease-out hover:-translate-y-0.5 hover:scale-110 hover:text-white" 
+                    >Guess</Button>
+                </div>
+            )}
             
             {(gameStatus === 'won' || gameStatus === 'lost') && (
                 <AlertDialog open={true}>
@@ -135,7 +142,7 @@ export default function Gameplay() {
                                     ? `You correctly guessed the word: ${selectedWord}` 
                                     : `The correct word was: ${selectedWord}`}
                             </AlertDialogDescription>
-                            <div className="w-full flex justify-centeritems-center">
+                            <div className="w-full flex justify-center items-center">
                                 <Button 
                                     onClick={restartGame} 
                                     className={`w-full border-black justify-center text-black transition transform delay-50 duration-300 ease-in ease-out hover:-translate-y-1 hover:scale-110 ${gameStatus === 'won' ? 'bg-green-300 hover:bg-white' : 'bg-red-500 hover:bg-white'}`}
@@ -196,3 +203,11 @@ const Word = ({ selectedWord, correctLetters, gameStatus }: { selectedWord: stri
         </div>
     );
 };
+
+export default function Gameplay() {
+    return (
+        <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-black text-green-300">Loading...</div>}>
+            <GameplayContent />
+        </Suspense>
+    );
+}
